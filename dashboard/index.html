@@ -41,6 +41,14 @@ button,input,select{font:inherit;color:inherit}
 #map .co-t{font:600 9px var(--mono);fill:var(--amber)}
 #map .co-s{font:400 7.5px var(--mono);fill:rgba(232,234,237,.82)}
 #map .tgt{fill:none;stroke:var(--amber);stroke-width:1.2}
+#map .soc{fill:rgba(0,212,255,.10);stroke:rgba(0,212,255,.65);stroke-width:.8;pointer-events:none}
+#map .soct{font:500 7px var(--mono);fill:var(--acc);text-anchor:middle;pointer-events:none}
+.post .eng{margin-top:3px;font-size:10px;font:500 10px var(--mono);color:var(--dim)}.post .eng a{color:var(--acc);text-decoration:none}
+.tagS,.tagH{font:600 8.5px var(--mono);letter-spacing:.08em;padding:0 5px;border-radius:5px;margin-left:5px}
+.tagS{background:rgba(0,212,255,.12);color:var(--acc)}.tagH{background:rgba(255,194,71,.14);color:var(--amber)}
+.sbar{display:flex;gap:6px;align-items:center;padding:6px 12px;border-bottom:1px solid rgba(0,212,255,.08);font-size:10px;color:var(--mute)}
+.sbar button{white-space:nowrap;background:transparent;border:1px solid var(--edge);border-radius:7px;padding:2px 7px;font-size:9.5px;color:var(--mute);cursor:pointer}
+.sbar button.on{color:var(--acc);background:var(--acc-dim)}
 /* ---------- HUD text ---------- */
 .hud{position:absolute;z-index:20;font-size:10px;letter-spacing:.12em;color:var(--mute);pointer-events:none;text-transform:uppercase}
 .hud b{color:var(--acc);font-weight:500}
@@ -157,7 +165,7 @@ mark{background:rgba(255,194,71,.28);color:#fff;border-radius:2px;padding:0 1px}
     <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,212,255,.08)" stroke-width="1"/></pattern>
     <filter id="edge" x="-10%" y="-10%" width="120%" height="120%"><feMorphology in="SourceAlpha" operator="erode" radius="1.2" result="e"/><feComposite in="SourceGraphic" in2="e" operator="out" result="rim"/><feGaussianBlur in="rim" stdDeviation="1.6" result="rb"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="rb"/></feMerge></filter>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <g id="gStates"></g><g id="gNation"></g><g id="gLabels"></g><g id="gCD"></g><g id="gRings"></g><g id="gCallouts"></g><g id="gTarget"></g></svg></div>
+    <g id="gStates"></g><g id="gNation"></g><g id="gLabels"></g><g id="gSocial"></g><g id="gCD"></g><g id="gRings"></g><g id="gCallouts"></g><g id="gTarget"></g></svg></div>
   <div id="fx"></div>
 
   <div class="hud" id="hud-tl"><div class="logo"><i></i>KALSHI'S <span>EYE</span></div><div class="sub">prediction markets × political streams</div>
@@ -174,6 +182,7 @@ mark{background:rgba(255,194,71,.28);color:#fff;border-radius:2px;padding:0 1px}
       <label class="tog"><input type="checkbox" id="tgCallouts" checked>Movers callouts<small>|Δ60|</small></label>
       <label class="tog"><input type="checkbox" id="tgPulse" checked>Settlement pulses<small>±10m</small></label>
       <label class="tog"><input type="checkbox" id="tgLabels" checked>State labels</label>
+      <label class="tog"><input type="checkbox" id="tgSocial" checked>Social volume<small>bluesky ±30m</small></label>
     </div>
     <div class="sec">
       <div class="kv"><span>SENATE · DEM CONTROL</span><b id="kS" style="color:var(--D)">—</b></div>
@@ -189,7 +198,7 @@ mark{background:rgba(255,194,71,.28);color:#fff;border-radius:2px;padding:0 1px}
 
   <section class="panel" id="right">
     <div id="card"><div class="t">select a state or race</div></div>
-    <div class="tabs"><button data-tab="contacts" class="on">Contacts</button><button data-tab="tx">Intercepts</button><button data-tab="chat">Chat</button><button data-tab="hits">Search</button><span class="sp"></span></div>
+    <div class="tabs"><button data-tab="contacts" class="on">Contacts</button><button data-tab="tx">Intercepts</button><button data-tab="chat">Chat</button><button data-tab="social">Social</button><button data-tab="hits">Search</button><span class="sp"></span></div>
     <div style="padding:6px 10px"><input class="q" id="stq" placeholder="filter: state / district / candidate" autocomplete="off"></div>
     <div id="list"></div>
   </section>
@@ -267,6 +276,11 @@ function drawMap(){
     .each(function(f){const[x,y]=CENT[f.ab]||[0,0];const r=k!=='house'&&raceFor(f.ab,k);const p=r?dAt(r,T):null;
       d3.select(this).select('.lbl').attr('x',x).attr('y',y).text(f.ab).style('opacity',r||k==='house'?1:.35);
       d3.select(this).select('.pct').attr('x',x).attr('y',y+9).text(p==null?'':Math.round(p*100));});
+  const SO=D.social, socOn=$('#tgSocial').checked&&SO;
+  const socN=socOn?Object.entries(SO.counts10m).map(([st,b])=>{const lo=Math.floor((T-1800-W0)/600),hi=Math.floor((T+1800-W0)/600);return [st,b.filter(x=>x[0]>=lo&&x[0]<=hi).reduce((a,x)=>a+x[1],0)];}).filter(x=>x[1]>0&&CENT[x[0]]):[];
+  const sr=d3.scaleSqrt().domain([0,d3.max(socN,x=>x[1])||1]).range([0,26]);
+  d3.select('#gSocial').selectAll('g').data(socN,x=>x[0]).join(en=>{const g=en.append('g');g.append('circle').attr('class','soc');g.append('text').attr('class','soct');return g;})
+    .each(function([st,n]){const[x,y]=CENT[st];d3.select(this).select('circle').attr('cx',x).attr('cy',y).attr('r',sr(n));d3.select(this).select('text').attr('x',x).attr('y',y-sr(n)-2).text(n>=5?n:'');});
   const hs=k==='house'?RACES.filter(r=>r.kind==='house'&&r.xy):[];
   const rad=d3.scaleSqrt().domain([0,d3.max(RACES.filter(r=>r.kind==='house'),r=>r.vol)||1]).range([2.4,10]);
   d3.select('#gCD').selectAll('circle').data(hs,r=>r.ev).join('circle').attr('class','cd')
@@ -294,12 +308,12 @@ function hoverState(ab){const r=mode!=='house'&&raceFor(ab,mode);if(!r){const n=
 function hoverRaceInfo(r){const p=dAt(r,T),p0=dAt(r,T-3600),w=winner(r);const D_=r.outs.find(m=>m.party==='D'),R_=r.outs.find(m=>m.party==='R');
   $('#hover').innerHTML=`${esc(r.id)} · D ${p==null?'—':(p*100).toFixed(1)+'%'} · Δ60 ${p!=null&&p0!=null?((p-p0)*100).toFixed(1):'—'} · ${esc(D_?.sub||'')} v ${esc(R_?.sub||'')}${w?' · won: '+esc(w.sub):''}`;
   if(r.kind==='house'){const g=D.geo.cd[`${r.state}-${r.dist}`];if(g)$('#coords').textContent=`${g[0].toFixed(3)}°N ${(-g[1]).toFixed(3)}°W · ${g[2].toLocaleString()} sq mi`;}}
-function selectState(ab){const r=mode!=='house'?raceFor(ab,mode):null;if(r)selectRace(r);else{stq=ab.toLowerCase();$('#stq').value=ab;renderList();}}
-function selectRace(r){sel=(sel&&r&&sel.ev===r.ev)?null:r;drawMap();renderCard();renderList();drawTL();}
+function selectState(ab){socState=ab;const r=mode!=='house'?raceFor(ab,mode):null;if(r)selectRace(r);else{stq=ab.toLowerCase();$('#stq').value=ab;renderList();}}
+function selectRace(r){sel=(sel&&r&&sel.ev===r.ev)?null:r;if(sel)socState=sel.state;drawMap();renderCard();renderList();drawTL();}
 $('#map').addEventListener('click',e=>{if(e.target.tagName==='svg'){sel=null;drawMap();renderCard();drawTL();}});
 
 /* ---------- right panel ---------- */
-let kxRange='ALL', kxHover=null;
+let kxRange='ALL', kxHover=null, socState=null, socNear=true, socFrom=false;
 const KXR={'1H':3600,'6H':6*3600,'12H':12*3600,'ALL':null};
 const oc=m=>m.party==='D'?C.D:m.party==='R'?C.R:C.O;
 function renderCard(){const c=$('#card');
@@ -354,12 +368,25 @@ function renderList(){const L=$('#list');
     if(!ch){L.innerHTML=`<div class="empty">no chat replay for ${esc(s.name)} — focus a feed with chat (BTC, TYT, Tim Pool, Kirk)</div>`;return;}
     const o=T-s.start,near=ch.msgs.filter(m=>m[0]>=o-180&&m[0]<=o+15);
     L.innerHTML=`<div class="empty">${esc(s.name)} · ${ch.total.toLocaleString()} msgs · sampled</div>`+near.map(m=>`<div class="msg" data-t="${s.start+m[0]}"><span class="m"><b style="color:${leanC(s.lean)}">${esc(m[1])}</b> · ${hm(s.start+m[0])}</span>${hl(m[2])}</div>`).join('');L.scrollTop=L.scrollHeight;
+  } else if(tab==='social'){const SO=D.social;
+    if(!SO){L.innerHTML='<div class="empty">social data pending</div>';return;}
+    const F=Object.fromEntries(SO.fields.map((f,i)=>[f,i])), st=socState;
+    let ps=SO.posts.filter(p=>!st||p[F.state]===st);
+    if(socNear)ps=ps.filter(p=>Math.abs(p[F.t]-T)<=3600);
+    if(socFrom&&st)ps=ps.filter(p=>p[F.home]===st);
+    if(stq)ps=ps.filter(p=>(p[F.text]+' '+p[F.handle]+' '+p[F.candidate]).toLowerCase().includes(stq));
+    ps=ps.slice().sort((a,b)=>b[F.likes]-a[F.likes]).slice(0,150);
+    const fmtN=n=>n>=1000?(n/1000).toFixed(1)+'k':n;
+    L.innerHTML=`<div class="sbar"><span>BLUESKY · ${st?'<b style="color:var(--ink)">'+st+'</b>':'all states'}</span>${st?`<button data-soc="all">all</button><button data-soc="from" class="${socFrom?'on':''}">from ${st}</button>`:''}<span class="sp"></span><button data-soc="near" class="${socNear?'on':''}">±60m</button><button data-soc="night" class="${socNear?'':'on'}">night</button></div>`+
+      (ps.map(p=>`<div class="msg post" data-t="${p[F.t]}"><span class="m"><b style="color:var(--ink)">@${esc(p[F.handle].replace('.bsky.social',''))}</b> · ${hm(p[F.t])}<span class="tagS">about ${p[F.state]}</span>${p[F.home]?`<span class="tagH" title="self-reported in profile">from ${p[F.home]}</span>`:''}</span>${hl(p[F.text])}${p[F.home_txt]?`<div class="eng" style="color:var(--amber)">⌖ profile says “${esc(p[F.home_txt])}”</div>`:''}<div class="eng">${fmtN(p[F.likes])} likes · ${fmtN(p[F.reposts])} reposts${p[F.candidate]?' · '+esc(p[F.candidate]):''} · <a href="${p[F.url]}" target="_blank" rel="noopener">open post</a></div></div>`).join('')
+       ||`<div class="empty">no posts ${socNear?'within ±60 min of the cursor — try "all night"':''}</div>`);
+    L.querySelectorAll('[data-soc]').forEach(b=>b.onclick=e=>{e.stopPropagation();const v=b.dataset.soc;if(v==='all'){socState=null;socFrom=false;}else if(v==='from')socFrom=!socFrom;else socNear=v==='near';renderList();});
   } else {if(!query){L.innerHTML='<div class="empty">type in the dock search box</div>';return;}
     const out=[];S.forEach(s=>{(D.transcripts[s.id]||[]).forEach(g=>{if(g[2].toLowerCase().includes(query))out.push([s.start+g[0],s,'tx',g[2]]);});(D.chat[s.id]?.msgs||[]).forEach(m=>{if(m[2].toLowerCase().includes(query))out.push([s.start+m[0],s,'chat',m[1]+': '+m[2]]);});});
     out.sort((a,b)=>a[0]-b[0]);const n={L:0,R:0};out.forEach(o=>n[o[1].lean]++);
     L.innerHTML=`<div class="empty">${out.length} hits · <span style="color:${C.D}">left ${n.L}</span> · <span style="color:${C.R}">right ${n.R}</span></div>`+out.slice(0,600).map(([t,s,k,txt])=>`<div class="msg" data-t="${t}"><span class="m"><b style="color:${leanC(s.lean)}">${esc(s.name)}</b> · ${k} · ${hm(t)}</span>${hl(txt)}</div>`).join('');}
 }
-$('#list').addEventListener('click',e=>{const r=e.target.closest('[data-ev]');if(r){selectRace(RACES.find(x=>x.ev===r.dataset.ev));return;}const m=e.target.closest('[data-t]');if(m)setT(+m.dataset.t,true);});
+$('#list').addEventListener('click',e=>{if(e.target.closest('a'))return;const r=e.target.closest('[data-ev]');if(r){selectRace(RACES.find(x=>x.ev===r.dataset.ev));return;}const m=e.target.closest('[data-t]');if(m)setT(+m.dataset.t,true);});
 $$('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;$$('.tabs button').forEach(x=>x.classList.toggle('on',x===b));renderList();});
 $('#stq').addEventListener('input',e=>{stq=e.target.value.trim().toLowerCase();renderList();});
 
@@ -419,7 +446,7 @@ let qT;$('#qg').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>
   if(query){tab='hits';$$('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.tab==='hits'));}renderList();drawTL();},200);});
 $$('#fxSeg button').forEach(b=>b.onclick=()=>{$('#frame').dataset.fx=b.dataset.fx;$('#fxname').textContent=b.dataset.fx;$$('#fxSeg button').forEach(x=>x.classList.toggle('on',x===b));});
 $$('#modeSeg button').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;sel=null;$$('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b));drawMap();renderCard();renderList();drawTL();});
-['tgCallouts','tgPulse','tgLabels'].forEach(id=>$('#'+id).onchange=drawMap);
+['tgCallouts','tgPulse','tgLabels','tgSocial'].forEach(id=>$('#'+id).onchange=drawMap);
 
 /* ---------- clock ---------- */
 let lastSlow=0;
@@ -427,7 +454,7 @@ function setT(t,user){T=Math.max(W0,Math.min(W1,t));$('#clock').textContent=fmtE
   $('#utc').textContent=new Date(T*1000).toISOString().replace('T',' ').slice(0,19)+'Z';
   const s=pxAt(mkBy['CONTROLS-2026-D'],T),h=pxAt(mkBy['CONTROLH-2026-D'],T);$('#kS').textContent=s==null?'—':(s*100).toFixed(1)+'%';$('#kH').textContent=h==null?'—':(h*100).toFixed(1)+'%';
   let cm=0;S.forEach(x=>{const ch=D.chat[x.id];if(!ch)return;const m=Math.floor((T-x.start)/60);const f=ch.per_min.find(p=>p[0]===m);if(f)cm+=f[1];});$('#kChat').textContent=cm.toLocaleString();
-  $('#telemetry').textContent=`src kalshi ${K.markets.length} · feeds ${S.length} · tx ${Object.keys(D.transcripts).length} · chat ${Object.keys(D.chat).length}`;
+  $('#telemetry').textContent=`src kalshi ${K.markets.length} · feeds ${S.length} · tx ${Object.keys(D.transcripts).length} · chat ${Object.keys(D.chat).length} · bsky ${D.social?D.social.total.toLocaleString():0}`;
   drawTL();seekAll(!!user);const now=performance.now();if(user||now-lastSlow>900){lastSlow=now;drawMap();renderCard();if(tab!=='hits')renderList();}}
 addEventListener('resize',sizeTL);
 sizeTL();setFocus(focus,false);renderCard();setT(T,true);

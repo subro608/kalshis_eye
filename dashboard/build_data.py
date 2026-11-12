@@ -133,6 +133,45 @@ def geo():
     return {"states": topo, "cd": cd}
 
 
+def social(per_state=250):
+    """Bluesky posts per state (about = matched a race/candidate query; from = author bio places them there)."""
+    pp = os.path.join(ROOT, "data", "social", "bluesky_posts.parquet")
+    if not os.path.exists(pp):
+        return None
+    df = pd.read_parquet(pp)
+    ap = os.path.join(ROOT, "data", "social", "bluesky_authors.parquet")
+    au = pd.read_parquet(ap) if os.path.exists(ap) else pd.DataFrame(columns=["did", "home_state", "followers"])
+    import sys as _s; _s.path.insert(0, os.path.join(ROOT, "collect"))
+    from bluesky_collect import home_match
+    if "bio" in au:
+        au = au.copy()
+        names = df.drop_duplicates("did").set_index("did")["name"]
+        hm_ = [home_match(" ".join(x for x in [names.get(d), b] if isinstance(x, str))) for d, b in zip(au.did, au.bio)]
+        au["home_state"] = [h[0] for h in hm_]; au["home_txt"] = [h[1] for h in hm_]
+    else:
+        au["home_txt"] = None
+    df = df.merge(au[["did", "home_state", "home_txt", "followers"]], on="did", how="left")
+    df["t"] = pd.to_datetime(df["created"], utc=True, errors="coerce", format="mixed")
+    df = df[df.t.notna()]
+    df["t"] = df.t.astype("int64") // 10**9
+    df = df[(df.t >= W0) & (df.t <= W1)]
+    # one row per (post, state): a post can be about several states
+    df = df.sort_values("likes", ascending=False).drop_duplicates(["uri", "state"])
+    posts, counts = [], {}
+    for st, g in df.groupby("state"):
+        counts[st] = [[int(k), int(v)] for k, v in ((g.t - W0) // 600).value_counts().sort_index().items()]
+        top = g.head(per_state)
+        local = g[(g.home_state == st) & ~g.uri.isin(top.uri)].head(120)
+        for _, r in pd.concat([top, local]).iterrows():
+            rkey = r.uri.rsplit("/", 1)[-1]
+            posts.append([int(r.t), st, r.handle, (r["name"] if isinstance(r["name"], str) else "")[:40], r.text[:400], int(r.likes), int(r.reposts),
+                          (r.candidate if isinstance(r.candidate, str) else ""), r.home_state if isinstance(r.home_state, str) else "", f"https://bsky.app/profile/{r.did}/post/{rkey}",
+                          r.home_txt if isinstance(r.home_txt, str) else ""])
+    posts.sort()
+    return {"source": "bluesky", "fields": ["t", "state", "handle", "name", "text", "likes", "reposts", "candidate", "home", "url", "home_txt"],
+            "posts": posts, "counts10m": counts, "total": int(df.uri.nunique())}
+
+
 def main():
     ss = streams()
     clips_json = os.environ.get("CLIPS_JSON")   # deploy build: clips instead of full local video
@@ -142,7 +181,7 @@ def main():
             x["video"] = None
             x["clips"] = cl.get(x["id"], [])
     data = {"window": [W0, W1], "events": EVENTS, "streams": ss, "transcripts": transcripts(ss),
-            "chat": chats(ss), "kalshi": kalshi(), "geo": geo()}
+            "chat": chats(ss), "kalshi": kalshi(), "geo": geo(), "social": social()}
     p = os.environ.get("DATA_OUT") or os.path.join(ROOT, "dashboard", "data.js")
     with open(p, "w") as f:
         f.write("window.DATA=")
