@@ -1,6 +1,6 @@
 # kalshis_eye
 
-A Palantir-style "night ops" dashboard that lines up **Kalshi prediction-market prices** with what
+A God's-Eye-View / Palantir-style "night ops" dashboard that lines up **Kalshi prediction-market prices** with what
 **political streamers on the left and right** were saying, and how their chat reacted, around the
 calls in the **2026 US midterms**.
 
@@ -14,8 +14,12 @@ Kalshi prices, and does that differ between left and right, or matter more in th
 - **Synced players:** every stream jumps to the same wall-clock moment.
 - **Transcripts / chat / search:** Whisper transcripts and YouTube live-chat replay at the cursor;
   keyword search split by left and right.
-- **Races:** every Senate, House-district and governor market Kalshi listed, shown on a state tile map
-  plus a sortable board (60-minute move, closest race, volume) with winners.
+- **Map:** a real US map (Albers USA) in Senate / Governor / House modes. States are coloured by D win
+  probability at the cursor, and House districts show as glowing markers at Census interior points, sized
+  by volume. Callouts with leader lines mark the biggest 60-minute movers, rings pulse as races settle,
+  and target brackets mark the selection.
+- **HUD:** glass panels (layers, CCTV-style feed wall, target card, contacts roster), a timeline dock
+  and NVG / FLIR / CRT visual presets.
 
 Window: Nov 3 11:00 ET to Nov 4 15:00 ET (about ±12 h around the calls).
 
@@ -23,6 +27,7 @@ Window: Nov 3 11:00 ET to Nov 4 15:00 ET (about ±12 h around the calls).
 | Step | Script | Output |
 |---|---|---|
 | Kalshi midterm markets + hourly candles (public API, no auth) | `collect/kalshi_collect.py` | `data/kalshi/` |
+| US state topology + congressional-district gazetteer | `collect/fetch_geo.sh` | `data/geo/` |
 | Minute candles in the window: control, AP-call markets, all races | `collect/kalshi_window_minute.py` | `data/window/kalshi/` |
 | Streamer video listings since Aug 1 (metadata only) | `collect/streamer_metadata.py` | `data/streamers/` |
 | Election-night streams: 360p video, info, live chat, captions (50 GB cap) | `collect/download_window.py` | `data/window/` |
@@ -39,6 +44,7 @@ The Young Turks (left); Steven Crowder, Tim Pool, Daily Wire / Ben Shapiro, Char
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python collect/kalshi_collect.py
 .venv/bin/python collect/kalshi_window_minute.py
+bash collect/fetch_geo.sh
 .venv/bin/python collect/streamer_metadata.py
 .venv/bin/python collect/download_window.py
 sbatch collect/transcribe.sbatch            # or run collect/transcribe.py on any CUDA machine

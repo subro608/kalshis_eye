@@ -117,6 +117,22 @@ def kalshi():
     return {"t0": grid[0], "step": 60, "markets": out}
 
 
+def geo():
+    """US state topology (pre-projected Albers USA, 975x610) + congressional-district interior points."""
+    import zipfile
+    g = os.path.join(ROOT, "data", "geo")
+    topo = json.load(open(os.path.join(g, "states-albers-10m.json")))
+    z = zipfile.ZipFile(os.path.join(g, "cd_gaz.zip"))
+    lines = z.read(z.namelist()[0]).decode("latin-1").splitlines()
+    hdr = lines[0].split("|"); cd = {}
+    for ln in lines[1:]:
+        r = dict(zip(hdr, ln.split("|")))
+        if not r["GEOID"][2:].isdigit(): continue
+        d = int(r["GEOID"][2:]) or 1          # at-large "00" -> 1
+        cd[f"{r['USPS']}-{d}"] = [round(float(r["INTPTLAT"]), 4), round(float(r["INTPTLONG"].strip()), 4), round(float(r["ALAND_SQMI"]))]
+    return {"states": topo, "cd": cd}
+
+
 def main():
     ss = streams()
     clips_json = os.environ.get("CLIPS_JSON")   # deploy build: clips instead of full local video
@@ -126,7 +142,7 @@ def main():
             x["video"] = None
             x["clips"] = cl.get(x["id"], [])
     data = {"window": [W0, W1], "events": EVENTS, "streams": ss, "transcripts": transcripts(ss),
-            "chat": chats(ss), "kalshi": kalshi()}
+            "chat": chats(ss), "kalshi": kalshi(), "geo": geo()}
     p = os.environ.get("DATA_OUT") or os.path.join(ROOT, "dashboard", "data.js")
     with open(p, "w") as f:
         f.write("window.DATA=")

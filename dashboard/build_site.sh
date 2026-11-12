@@ -20,7 +20,13 @@ export default async function middleware(request){
   return new Response('Authentication required', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="Midterm Night Ops", charset="UTF-8"', 'Cache-Control': 'no-store' } });
 }
 JS
+# cache-bust: page always revalidates; data.js is referenced with a content hash
+V=$(sha256sum "$OUT/data.js" | cut -c1-10)
+sed -i "s|<script src=\"data.js[^\"]*\"></script>|<script src=\"data.js?v=$V\"></script>|" "$OUT/index.html"
 cat > "$OUT/vercel.json" <<JS
-{ "headers": [ { "source": "/(.*)", "headers": [ { "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "Cache-Control", "value": "private, max-age=300" } ] } ] }
+{ "headers": [
+  { "source": "/(.*)", "headers": [ { "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "Cache-Control", "value": "private, no-cache" } ] },
+  { "source": "/clips/(.*)", "headers": [ { "key": "Cache-Control", "value": "private, max-age=86400" } ] }
+] }
 JS
 du -sh "$OUT"; ls "$OUT"

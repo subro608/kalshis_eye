@@ -12,10 +12,12 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VID = os.path.join(ROOT, "data/window/video")
 OUT = os.path.join(ROOT, "data/window/transcripts")
 SR, BLOCK = 16000, 20 * 60
+# static ffmpeg (the container's ffmpeg breaks under --nv because of injected host GL libs)
+FFMPEG = os.environ.get("FFMPEG", "ffmpeg")
 
 
 def blocks(path):
-    cmd = ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", path, "-vn", "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"]
+    cmd = [FFMPEG, "-nostdin", "-loglevel", "error", "-i", path, "-vn", "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"]
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     n = SR * BLOCK * 4
     i = 0
@@ -47,6 +49,8 @@ def main():
                 segs.append({"start": round(off + a, 2), "end": round(off + (b if b is not None else a + 5), 2),
                              "text": c["text"].strip()})
             print(f"  {vid} block@{off/3600:.2f}h segs={len(segs)}", flush=True)
+        if not segs:
+            raise RuntimeError(f"no transcript segments for {vid} - audio decode failed?")
         json.dump({"id": vid, "model": "openai/whisper-large-v3-turbo", "segments": segs}, open(out, "w"))
         print(f"DONE {vid} {len(segs)} segs in {(time.time()-t0)/60:.1f} min", flush=True)
     print("ALL DONE", flush=True)
