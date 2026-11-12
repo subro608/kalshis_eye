@@ -1,0 +1,7 @@
+yt-dlp>=2026.10
+requests
+pandas
+pyarrow
+imageio-ffmpeg
+playwright   # optional: headless screenshot check (dashboard/shot.py)
+# transcription (collect/transcribe.py) runs in a CUDA container with torch + transformers

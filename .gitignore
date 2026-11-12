@@ -1,0 +1,16 @@
+# environments / tools
+.venv/
+.pw/
+.chromelibs/
+__pycache__/
+*.pyc
+.vercel
+.env*
+# downloaded + derived data (third-party media, chat, transcripts) — never publish
+data/
+deploy_build/
+dashboard/data.js
+logs/
+*.mp4
+*.part
+*.json3
