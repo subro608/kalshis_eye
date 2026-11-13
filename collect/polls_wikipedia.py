@@ -91,7 +91,7 @@ def races():
     mk = pd.read_parquet(os.path.join(ROOT, "data/window/kalshi/markets.parquet"))
     out = {}
     for _, m in mk.iterrows():
-        mm = re.match(r"^(?:SENATEPARTY-?|SENATE)([A-Z]{2})(S?)$|^HOUSE([A-Z]{2})(\d+)$|^(?:GOVPARTY|KXGOV)([A-Z]{2})$", m.series_ticker)
+        mm = re.match(r"^(?:SENATEPARTY-?|SENATE)([A-Z]{2})(S?)$|^HOUSE([A-Z]{2})(\d+)$|^(?:GOVPARTY|KXGOV)([A-Z]{2})$", (m.race_series if isinstance(m.get("race_series"), str) else m.series_ticker))
         if not mm: continue
         if mm.group(1): key = ("senate", mm.group(1), "special" if mm.group(2) else None)
         elif mm.group(3): key = ("house", mm.group(3), int(mm.group(4)))

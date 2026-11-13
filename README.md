@@ -33,6 +33,7 @@ Window: Nov 3 11:00 ET to Nov 4 15:00 ET (about ±12 h around the calls).
 | Kalshi midterm markets + hourly candles (public API, no auth) | `collect/kalshi_collect.py` | `data/kalshi/` |
 | US state topology + congressional-district gazetteer | `collect/fetch_geo.sh` | `data/geo/` |
 | Minute candles in the window: control, AP-call markets, all races | `collect/kalshi_window_minute.py` | `data/window/kalshi/` |
+| House races listed under `KXHOUSERACE` / `KXHOUSE<ST><N>` (411 districts in total) | `collect/kalshi_window_minute_extra.py` | `data/window/kalshi/` |
 | Streamer video listings since Aug 1 (metadata only) | `collect/streamer_metadata.py` | `data/streamers/` |
 | Election-night streams: 360p video, info, live chat, captions (50 GB cap) | `collect/download_window.py` | `data/window/` |
 | Whisper large-v3-turbo transcripts (GPU, SLURM) | `collect/transcribe.py`, `collect/transcribe.sbatch` | `data/window/transcripts/` |
@@ -74,5 +75,5 @@ licences and handling rules.
 - **Twitch chat replay**, and live chat for streams that have no replay (Crowder, Daily Wire, Hasan's
   YouTube stream).
 - **Reddit:** needs OAuth credentials.
-- **House polling is sparse:** 29 of 64 Kalshi House districts had no public general-election poll since
-  Aug 1. This is a property of the data, not a gap in collection.
+- **House polling is sparse:** 317 of the 411 House districts Kalshi lists had no public general-election
+  poll since Aug 1. This is a property of the data, not a gap in collection.

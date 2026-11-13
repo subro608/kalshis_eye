@@ -62,6 +62,13 @@ button,input,select{font:inherit;color:inherit}
 .rec{color:#ff5a5f}.rec:before{content:'● ';animation:blink 1.2s steps(1) infinite}
 @keyframes blink{50%{opacity:.2}}
 #clock{font:500 15px var(--mono);letter-spacing:.08em;color:var(--ink);text-transform:none}
+#allwrap{position:absolute;inset:0;display:none;z-index:5}
+#allwrap.on{display:block}#allc{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+#allbar{position:absolute;right:14px;top:6px;display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:62%;gap:6px;align-items:center;z-index:6;font-size:10px;letter-spacing:.1em;color:var(--mute);text-transform:uppercase}
+#allbar button{background:rgba(0,0,0,.35);border:1px solid var(--edge);border-radius:7px;padding:3px 8px;font-size:9.5px;letter-spacing:.1em;color:var(--mute);cursor:pointer;text-transform:uppercase}
+#allbar button.on{background:var(--acc-dim);color:var(--acc);border-color:var(--edge2)}
+#allbar .gap{width:10px}#allstat{flex-basis:100%;text-align:right;color:var(--ink);margin-top:2px}
+#stage.all #map{visibility:hidden}
 #hud-bl{left:290px;bottom:264px}
 #hud-br{right:390px;bottom:264px;text-align:right}
 #hover{min-height:14px;color:var(--ink);text-transform:none;letter-spacing:.04em;font-size:11px}
@@ -165,7 +172,9 @@ mark{background:rgba(255,194,71,.28);color:#fff;border-radius:2px;padding:0 1px}
     <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,212,255,.08)" stroke-width="1"/></pattern>
     <filter id="edge" x="-10%" y="-10%" width="120%" height="120%"><feMorphology in="SourceAlpha" operator="erode" radius="1.2" result="e"/><feComposite in="SourceGraphic" in2="e" operator="out" result="rim"/><feGaussianBlur in="rim" stdDeviation="1.6" result="rb"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="rb"/></feMerge></filter>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <g id="gStates"></g><g id="gNation"></g><g id="gLabels"></g><g id="gSocial"></g><g id="gCD"></g><g id="gRings"></g><g id="gCallouts"></g><g id="gTarget"></g></svg></div>
+    <g id="gStates"></g><g id="gNation"></g><g id="gLabels"></g><g id="gSocial"></g><g id="gCD"></g><g id="gRings"></g><g id="gCallouts"></g><g id="gTarget"></g></svg>
+    <div id="allwrap"><canvas id="allc"></canvas><div id="allbar"><span>races</span><button data-ak="all" class="on">All</button><button data-ak="senate">Sen</button><button data-ak="gov">Gov</button><button data-ak="house">House</button>
+      <span class="gap"></span><button data-ar="night" class="on">Night</button><button data-ar="long">Since Aug</button><span id="allstat"></span></div></div></div>
   <div id="fx"></div>
 
   <div class="hud" id="hud-tl"><div class="logo"><i></i>KALSHI'S <span>EYE</span></div><div class="sub">prediction markets × political streams</div>
@@ -177,6 +186,7 @@ mark{background:rgba(255,194,71,.28);color:#fff;border-radius:2px;padding:0 1px}
 
   <section class="panel" id="left">
     <div class="ph">Layers <span class="r" id="racecount"></span></div>
+    <div class="sec"><div class="seg" id="viewSeg"><button data-view="map" class="on">Map</button><button data-view="all">All races · P(D)</button></div></div>
     <div class="sec"><div class="seg" id="modeSeg"><button data-mode="senate" class="on">Senate</button><button data-mode="gov">Gov</button><button data-mode="house">House</button></div></div>
     <div class="sec">
       <label class="tog"><input type="checkbox" id="tgCallouts" checked>Movers callouts<small>|Δ60|</small></label>
@@ -228,6 +238,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const [W0,W1]=D.window, S=D.streams, K=D.kalshi;
 const C={D:'#3d8bff',R:'#ff4d5e',O:'#d8b25a',acc:'#00d4ff',amber:'#ffc247'};
 const leanC=l=>l==='L'?C.D:C.R;
+let view='map';
 let T=D.events[0].t, focus=S[0].id, playing=false, mode='senate', sel=null, stq='', query='', tab='contacts';
 
 /* ---------- markets & races ---------- */
@@ -265,7 +276,7 @@ const cdXY=k=>{const g=D.geo.cd[k];return g?proj([g[1],g[0]]):null;};
 RACES.forEach(r=>{r.xy=r.kind==='house'?(cdXY(`${r.state}-${r.dist}`)||CENT[r.state]):CENT[r.state];});
 
 function raceFor(st,k){return RACES.find(r=>r.kind===k&&r.state===st&&r.dist!=='special')||RACES.find(r=>r.kind===k&&r.state===st);}
-function drawMap(){
+function drawMap(){if(view==='all')drawAllOv();
   const k=mode; $('#mapmode').textContent=`${{senate:'senate',gov:'governor',house:'house districts'}[k]} · d win probability at cursor`;
   gStates.selectAll('path').attr('class',f=>{const r=k!=='house'&&raceFor(f.ab,k);return 'st'+(r?' race':' none')+(sel&&sel.state===f.ab?' sel':'');})
     .attr('fill',f=>{if(k==='house')return 'rgba(255,255,255,.022)';const r=raceFor(f.ab,k);return r?color(dAt(r,T)):null;})
@@ -470,8 +481,60 @@ function setT(t,user){T=Math.max(W0,Math.min(W1,t));$('#clock').textContent=fmtE
   const s=pxAt(mkBy['CONTROLS-2026-D'],T),h=pxAt(mkBy['CONTROLH-2026-D'],T);$('#kS').textContent=s==null?'—':(s*100).toFixed(1)+'%';$('#kH').textContent=h==null?'—':(h*100).toFixed(1)+'%';
   let cm=0;S.forEach(x=>{const ch=D.chat[x.id];if(!ch)return;const m=Math.floor((T-x.start)/60);const f=ch.per_min.find(p=>p[0]===m);if(f)cm+=f[1];});$('#kChat').textContent=cm.toLocaleString();
   $('#telemetry').textContent=`src kalshi ${K.markets.length} · feeds ${S.length} · tx ${Object.keys(D.transcripts).length} · chat ${Object.keys(D.chat).length} · bsky ${D.social?D.social.total.toLocaleString():0}${D.social_long?' / '+D.social_long.total.toLocaleString()+' since aug':''}`;
-  drawTL();seekAll(!!user);const now=performance.now();if(user||now-lastSlow>900){lastSlow=now;drawMap();renderCard();if(tab!=='hits')renderList();}}
+  if(view==='all')drawAllOv();drawTL();seekAll(!!user);const now=performance.now();if(user||now-lastSlow>900){lastSlow=now;drawMap();renderCard();if(tab!=='hits')renderList();}}
 addEventListener('resize',sizeTL);
+/* ---------- all races: P(D win) over time, one line per race ---------- */
+let aKind='all', aRange='night', aHover=null, aBG=null, aKey='';
+const AC=$('#allc'), actx=AC.getContext('2d');
+const dLong=(r,t)=>{const d=r.outs.find(m=>m.party==='D'),R=r.outs.find(m=>m.party==='R');const pd=d?longAt(d,t):null,pr=R?longAt(R,t):null;
+  if(pd!=null&&pr!=null)return pd/((pd+pr)||1);if(pd!=null)return pd;if(pr!=null)return 1-pr;return null;};
+function aSeries(r,range){const k='_s'+range;if(r[k])return r[k];const out=[];
+  if(range==='long'&&D.long){const L=D.long;for(let t=L.t0;t<W0;t+=L.step){const v=dLong(r,t);if(v!=null)out.push([t,v]);}}
+  const st=range==='long'?1800:300;for(let t=W0;t<=W1;t+=st){const v=dAt(r,t);if(v!=null)out.push([t,v]);}return r[k]=out;}
+const aRaces=()=>RACES.filter(r=>aKind==='all'||r.kind===aKind);
+const aCol=(r,a)=>{const w=winner(r);const c=!w?'216,178,90':w.party==='D'?'61,139,255':w.party==='R'?'255,77,94':'216,178,90';return `rgba(${c},${a})`;};
+function aGeom(){const W=AC.clientWidth,H=AC.clientHeight,pl=58,pr=14,pt=58,pb=26;const x0=aRange==='long'&&D.long?D.long.t0:W0,x1=W1;
+  return {W,H,pl,pr,pt,pb,x0,x1,X:t=>pl+(t-x0)/(x1-x0)*(W-pl-pr),Y:v=>pt+(1-v)*(H-pt-pb),T:x=>x0+(x-pl)/(W-pl-pr)*(x1-x0)};}
+function drawAllBG(){const g=aGeom(),dpr=devicePixelRatio||1,key=[aKind,aRange,g.W,g.H,dpr].join('|');if(key===aKey&&aBG)return g;aKey=key;
+  AC.width=g.W*dpr;AC.height=g.H*dpr;aBG=document.createElement('canvas');aBG.width=AC.width;aBG.height=AC.height;const c=aBG.getContext('2d');c.scale(dpr,dpr);
+  c.fillStyle='rgba(5,7,11,.92)';c.fillRect(0,0,g.W,g.H);
+  // y grid: D 100 at top, R 100 at bottom
+  c.font='10px JetBrains Mono, monospace';c.textAlign='right';c.textBaseline='middle';
+  [[1,'D 100%'],[.75,'D 75%'],[.5,'50/50'],[.25,'R 75%'],[0,'R 100%']].forEach(([v,l])=>{const y=g.Y(v);c.strokeStyle=v===.5?'rgba(232,234,237,.35)':'rgba(0,212,255,.08)';c.setLineDash(v===.5?[4,4]:[]);
+    c.beginPath();c.moveTo(g.pl,y);c.lineTo(g.W-g.pr,y);c.stroke();c.fillStyle=v>.5?C.D:v<.5?C.R:'rgba(232,234,237,.6)';c.fillText(l,g.pl-6,y);});c.setLineDash([]);
+  const fmt=aRange==='long'?(t=>new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:NY})):hm;
+  c.textAlign='center';c.fillStyle='rgba(232,234,237,.5)';(aRange==='long'?d3.ticks(g.x0,g.x1,8):d3.range(W0,W1+1,3*3600)).forEach(t=>{const x=g.X(t);c.strokeStyle='rgba(0,212,255,.06)';c.beginPath();c.moveTo(x,g.pt);c.lineTo(x,g.H-g.pb);c.stroke();c.fillText(fmt(t),x,g.H-g.pb+13);});
+  if(aRange==='long'){const x=g.X(W0);c.fillStyle='rgba(0,212,255,.05)';c.fillRect(x,g.pt,g.W-g.pr-x,g.H-g.pt-g.pb);}
+  D.events.forEach(e=>{const x=g.X(e.t);c.strokeStyle='rgba(255,194,71,.45)';c.setLineDash([3,3]);c.beginPath();c.moveTo(x,g.pt);c.lineTo(x,g.H-g.pb);c.stroke();c.setLineDash([]);});
+  const rs=aRaces(),a=rs.length>150?.22:.45;c.lineWidth=1;
+  rs.forEach(r=>{const S_=aSeries(r,aRange);if(S_.length<2)return;c.strokeStyle=aCol(r,a);c.beginPath();S_.forEach(([t,v],i)=>i?c.lineTo(g.X(t),g.Y(v)):c.moveTo(g.X(t),g.Y(v)));c.stroke();});
+  return g;}
+function drawAllOv(){if(view!=='all')return;const g=drawAllBG(),dpr=devicePixelRatio||1;actx.setTransform(1,0,0,1,0,0);actx.drawImage(aBG,0,0);actx.setTransform(dpr,0,0,dpr,0,0);
+  const line=(r,w,col)=>{const S_=aSeries(r,aRange);actx.strokeStyle=col;actx.lineWidth=w;actx.beginPath();S_.forEach(([t,v],i)=>i?actx.lineTo(g.X(t),g.Y(v)):actx.moveTo(g.X(t),g.Y(v)));actx.stroke();};
+  if(sel&&aRaces().includes(sel)){actx.shadowColor='#fff';actx.shadowBlur=6;line(sel,2.4,aCol(sel,1));actx.shadowBlur=0;}
+  if(aHover&&aHover!==sel)line(aHover,2,aCol(aHover,.95));
+  const x=g.X(T);actx.strokeStyle=C.acc;actx.lineWidth=1;actx.beginPath();actx.moveTo(x,g.pt);actx.lineTo(x,g.H-g.pb);actx.stroke();
+  // dots at cursor + label for hover / selected
+  [sel,aHover].filter((r,i,a)=>r&&a.indexOf(r)===i&&aRaces().includes(r)).forEach(r=>{const v=T<W0?dLong(r,T):dAt(r,T);if(v==null)return;const y=g.Y(v);
+    actx.fillStyle=aCol(r,1);actx.beginPath();actx.arc(x,y,3.5,0,7);actx.fill();actx.font='11px JetBrains Mono, monospace';actx.textAlign='left';actx.fillStyle='#e8eaed';
+    actx.fillText(`${r.id} ${v>=.5?'D':'R'} ${(Math.max(v,1-v)*100).toFixed(0)}%`,x+7,y-7);});
+  const rs=aRaces();let nd=0,nr=0;rs.forEach(r=>{const v=dAt(r,T);if(v==null)return;v>=.5?nd++:nr++;});
+  $('#allstat').innerHTML=`${rs.length} races · at cursor <b style="color:${C.D}">D favored ${nd}</b> · <b style="color:${C.R}">R favored ${nr}</b> · line colour = winner`;}
+function aPick(e){const g=aGeom(),b=AC.getBoundingClientRect(),mx=e.clientX-b.left,my=e.clientY-b.top,t=g.T(mx);let best=null,bd=9;
+  aRaces().forEach(r=>{const S_=aSeries(r,aRange);if(!S_.length)return;let lo=0,hi=S_.length-1;while(lo<hi){const m=(lo+hi)>>1;S_[m][0]<t?lo=m+1:hi=m;}
+    const d=Math.abs(g.Y(S_[lo][1])-my);if(d<bd){bd=d;best=r;}});return {r:best,t};}
+AC.addEventListener('mousemove',e=>{const {r,t}=aPick(e);if(r!==aHover){aHover=r;drawAllOv();}
+  if(r){const v=t<W0?dLong(r,t):dAt(r,t),w=winner(r),Dn=r.outs.find(m=>m.party==='D'),Rn=r.outs.find(m=>m.party==='R');
+    $('#hover').textContent=`${r.id} · ${Dn?Dn.sub:'D'} vs ${Rn?Rn.sub:'R'} · P(D) ${v==null?'—':(v*100).toFixed(0)+'%'} @ ${t<W0?new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:NY}):hm(t)}${w?' · won: '+w.party:''}`;}
+  else $('#hover').textContent='hover a line';});
+AC.addEventListener('mouseleave',()=>{aHover=null;drawAllOv();});
+AC.addEventListener('click',e=>{const {r,t}=aPick(e);if(t>=W0)setT(t,true);if(r)selectRace(r);else drawAllOv();});
+$$('#allbar [data-ak]').forEach(b=>b.onclick=()=>{aKind=b.dataset.ak;$$('#allbar [data-ak]').forEach(x=>x.classList.toggle('on',x===b));drawAllOv();});
+$$('#allbar [data-ar]').forEach(b=>b.onclick=()=>{aRange=b.dataset.ar;$$('#allbar [data-ar]').forEach(x=>x.classList.toggle('on',x===b));drawAllOv();});
+$$('#viewSeg button').forEach(b=>b.onclick=()=>{view=b.dataset.view;$$('#viewSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  $('#allwrap').classList.toggle('on',view==='all');$('#stage').classList.toggle('all',view==='all');
+  $('#hud-br').style.visibility=view==='all'?'hidden':'';if(view==='all'){aKey='';drawAllOv();}});
+addEventListener('resize',()=>{if(view==='all')drawAllOv();});
 sizeTL();setFocus(focus,false);renderCard();setT(T,true);
 </script>
 </body>

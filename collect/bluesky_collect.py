@@ -51,7 +51,7 @@ def queries():
     mk = pd.read_parquet(os.path.join(ROOT, "data/window/kalshi/markets.parquet"))
     qs = []
     for _, m in mk.iterrows():
-        st = m.series_ticker
+        st = (m.race_series if isinstance(m.get("race_series"), str) else m.series_ticker)
         mm = re.match(r"^(?:SENATEPARTY-?|SENATE)([A-Z]{2})S?$|^HOUSE([A-Z]{2})(\d+)$|^(?:GOVPARTY|KXGOV)([A-Z]{2})$", st)
         if not mm: continue
         state = mm.group(1) or mm.group(2) or mm.group(4)

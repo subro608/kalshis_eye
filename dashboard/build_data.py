@@ -109,7 +109,7 @@ def kalshi():
         px = g["close"].reindex(grid).ffill()
         if px.notna().sum() < 10:
             continue
-        kind, state, dist, party = race_info(m.series_ticker, m.ticker, m.title)
+        kind, state, dist, party = race_info((m.race_series if isinstance(m.get("race_series"), str) else m.series_ticker), m.ticker, m.title)
         out.append({"ticker": m.ticker, "series": m.series_ticker, "event": m.event_ticker, "title": m.title,
                     "sub": m.yes_sub_title, "result": m.result, "close_time": m.close_time,
                     "volume_total": float(m.volume_fp or 0), "kind": kind, "state": state, "dist": dist, "party": party,
@@ -177,7 +177,8 @@ def long_and_polls(step=6 * 3600):
     t0 = int(pd.Timestamp("2026-08-01", tz="UTC").timestamp())
     grid = pd.DataFrame({"ts": list(range(t0, W1 + 1, step))})
     mk = pd.read_parquet(os.path.join(W, "kalshi", "markets.parquet"))
-    mk = mk[mk.series_ticker.str.match(r"^(SENATE|HOUSE[A-Z]{2}\d|GOVPARTY|KXGOV[A-Z]{2}$)")]
+    rs = mk.race_series.fillna(mk.series_ticker) if "race_series" in mk else mk.series_ticker
+    mk = mk[rs.str.match(r"^(SENATE|HOUSE[A-Z]{2}\d|GOVPARTY|KXGOV[A-Z]{2}$)")]
     px, cache = {}, {}
     for _, m in mk.iterrows():
         f = os.path.join(ROOT, "data", "kalshi", "candles", f"{m.series_ticker}.parquet")

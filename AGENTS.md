@@ -64,6 +64,8 @@ logs/       run logs and private notes (git-ignored)
 ## 4. Data inventory and sources
 All paths are relative to `data/`. Sizes and counts are as of 2026-11-13.
 
+Coverage: Senate 34/35 races (Kentucky has no Kalshi market; Alaska is still open), Governor 36/36, House 411/435.
+
 ### 4.1 Kalshi prediction markets
 - **Source:** Kalshi public trade API v2, `https://api.elections.kalshi.com/trade-api/v2` (no auth).
   Endpoints used: `/series`, `/markets`, `/series/{s}/markets/{t}/candlesticks` (`period_interval` 60 = hourly,
@@ -76,7 +78,7 @@ All paths are relative to `data/`. Sizes and counts are as of 2026-11-13.
   | `CONTROLH-2026-D/R` | House control |
   | `KXAPCALLHOUSE`, `KXAPCALLSENATE` | AP call timing |
   | `SENATE<ST>` (`SENATE<ST>S` = special), `SENATEPARTY-?<ST>` | Senate races |
-  | `HOUSE<ST><N>` | House districts |
+  | `HOUSE<ST><N>` (64 districts), `KXHOUSERACE-<ST><N>-26-D/R` (336, one series), `KXHOUSE<ST><N>` (11) | House districts: 411 of 435 in total. The window data adds a `race_series` column that maps all three to `HOUSE<ST><N>` |
   | `GOVPARTY<ST>`, `KXGOV<ST>` | Governors |
 
 | File | Script | Content |
@@ -84,8 +86,8 @@ All paths are relative to `data/`. Sizes and counts are as of 2026-11-13.
 | `kalshi/series_elections_politics.json` | `collect/kalshi_collect.py` | Series catalog (7 MB) |
 | `kalshi/markets.parquet` | same | 2,405 midterm markets in 196 series; full market fields (`ticker`, `title`, `result`, `volume_fp`, `last_price_dollars`, `settlement_ts`, …) |
 | `kalshi/candles/<SERIES>.parquet` | same | Hourly candles, Aug 1 → Nov 12, 1.84 M rows: `ticker, ts, close, mean, bid_close, ask_close, volume, open_interest, time` |
-| `window/kalshi/markets.parquet` | `collect/kalshi_window_minute.py` | 313 markets: control, AP-call and every Senate/House/Gov race |
-| `window/kalshi/minute_candles.parquet` | same | Minute candles in the window, 124,491 rows: `ticker, ts, close, mean, bid, ask, volume` |
+| `window/kalshi/markets.parquet` | `collect/kalshi_window_minute.py` + `collect/kalshi_window_minute_extra.py` | 1,022 markets: control, AP-call, 34 Senate, 36 Gov and 411 House races, plus `race_series` |
+| `window/kalshi/minute_candles.parquet` | same | Minute candles in the window, 276,034 rows: `ticker, ts, close, mean, bid, ask, volume` |
 
 ### 4.2 Political streamers (YouTube + Twitch)
 - **Source:** public channel and VOD pages, accessed with `yt-dlp`. Twitch VODs come from twitch.tv, the
@@ -128,11 +130,11 @@ All paths are relative to `data/`. Sizes and counts are as of 2026-11-13.
 | Wikipedia race pages via the MediaWiki API (`en.wikipedia.org`), CC BY-SA | `collect/polls_wikipedia.py` | Senate (incl. specials), governor and House state pages. Follows split district sub-pages (e.g. California 1–26 / 27–52). Uses "general election" poll tables; nominee columns are matched by last name |
 | VoteHub API `https://api.votehub.com/polls`, CC BY 4.0 | `collect/polls_votehub.py` | Raw copy in `polls/raw/votehub_polls.json`. Matched to Kalshi nominees and deduped against Wikipedia (same pollster, ±2 days, D within 1 pt) |
 
-- **Output:** `polls/polls.parquet` / `polls.csv`, 1,500 polls: Senate 722 (23 races), Governor 672 (32), House 106
-  (35 of 64 Kalshi districts). Columns: `kind, state, dist, events, page, pollster, end, sample, moe, D_name, R_name,
+- **Output:** `polls/polls.parquet` / `polls.csv`, 1,628 polls: Senate 722 (23 races), Governor 672 (32), House 234
+  (94 of 411 Kalshi districts). Columns: `kind, state, dist, events, page, pollster, end, sample, moe, D_name, R_name,
   D, R, section, source`. `section` flags partisan and internal polls.
-- **House polling is genuinely sparse.** 29 Kalshi districts have no public general-election poll; that is a
-  finding, not a bug.
+- **House polling is genuinely sparse.** 317 of 411 Kalshi districts have no public general-election poll since
+  Aug 1; that is a finding, not a bug.
 - **Rejected:** ElectIndex `race_polls.csv` (scraped from NYT, no license). Its raw copy is in `polls/raw/`
   but **must not be used or redistributed**.
 - 538 shut down in 2025, so it is not a source.
