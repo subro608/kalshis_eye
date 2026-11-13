@@ -172,6 +172,32 @@ def social(per_state=250):
             "posts": posts, "counts10m": counts, "total": int(df.uri.nunique())}
 
 
+def long_and_polls(step=6 * 3600):
+    """Kalshi race prices since Aug 1 (6-hourly, from the hourly candles) + Wikipedia general-election polls per race."""
+    t0 = int(pd.Timestamp("2026-08-01", tz="UTC").timestamp())
+    grid = pd.DataFrame({"ts": list(range(t0, W1 + 1, step))})
+    mk = pd.read_parquet(os.path.join(W, "kalshi", "markets.parquet"))
+    mk = mk[mk.series_ticker.str.match(r"^(SENATE|HOUSE[A-Z]{2}\d|GOVPARTY|KXGOV[A-Z]{2}$)")]
+    px, cache = {}, {}
+    for _, m in mk.iterrows():
+        f = os.path.join(ROOT, "data", "kalshi", "candles", f"{m.series_ticker}.parquet")
+        if not os.path.exists(f): continue
+        if f not in cache: cache[f] = pd.read_parquet(f)
+        c = cache[f]; c = c[(c.ticker == m.ticker) & c.close.notna()].sort_values("ts")
+        if len(c) < 5: continue
+        j = pd.merge_asof(grid, c[["ts", "close"]].astype({"ts": "int64"}), on="ts", direction="backward")
+        px[m.ticker] = [None if pd.isna(v) else round(float(v), 3) for v in j.close]
+    polls = {}
+    pp = os.path.join(ROOT, "data", "polls", "polls.parquet")
+    if os.path.exists(pp):
+        for _, r in pd.read_parquet(pp).iterrows():
+            t = int(pd.Timestamp(r.end, tz="UTC").timestamp()) + 12 * 3600
+            for ev in r.events.split("|"):
+                polls.setdefault(ev, []).append([t, r["pollster"][:40], float(r["D"]), float(r["R"]), str(r["sample"])])
+        for v in polls.values(): v.sort()
+    return {"t0": t0, "step": step, "px": px, "polls": polls}
+
+
 def main():
     ss = streams()
     clips_json = os.environ.get("CLIPS_JSON")   # deploy build: clips instead of full local video
@@ -181,7 +207,7 @@ def main():
             x["video"] = None
             x["clips"] = cl.get(x["id"], [])
     data = {"window": [W0, W1], "events": EVENTS, "streams": ss, "transcripts": transcripts(ss),
-            "chat": chats(ss), "kalshi": kalshi(), "geo": geo(), "social": social()}
+            "chat": chats(ss), "kalshi": kalshi(), "geo": geo(), "social": social(), "long": long_and_polls()}
     p = os.environ.get("DATA_OUT") or os.path.join(ROOT, "dashboard", "data.js")
     with open(p, "w") as f:
         f.write("window.DATA=")
