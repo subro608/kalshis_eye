@@ -111,7 +111,15 @@ def main():
         title = {"senate": f"2026 United States Senate {'special ' if extra == 'special' else ''}election in {nm}",
                  "gov": f"2026 {nm} gubernatorial election",
                  "house": f"2026 United States House of Representatives elections in {nm}"}[kind]
-        if title not in cache: cache[title] = page_html(title)
+        if title not in cache:
+            cache[title] = page_html(title)
+            # big states (e.g. California) split districts onto sub-pages linked from hatnotes: append them
+            if kind == "house" and cache[title]:
+                from urllib.parse import unquote
+                subs = re.findall(r'href="/wiki/(2026_United_States_House_of_Representatives_elections_in_[^"#]*?_\(districts[^"#]*?\))"', cache[title])
+                for sub in dict.fromkeys(subs):
+                    h2 = page_html(unquote(sub).replace("_", " "))
+                    if h2: cache[title] += h2
         html = cache[title]
         if not html or not (r["D"] and r["R"]): print("skip", kind, st, extra, "(no page)" if not html else "(no D/R names)", flush=True); continue
         dl, rl = r["D"].split()[-1].lower(), r["R"].split()[-1].lower()
@@ -136,7 +144,7 @@ def main():
         print(f"{kind:6s} {st}{'' if extra is None else '-' + str(extra):9s} polls since Aug 1: {len(rows) - n0}", flush=True)
     df = pd.DataFrame(rows).drop_duplicates(["kind", "state", "dist", "pollster", "end", "D", "R"]) if rows else pd.DataFrame()
     if len(df): df["dist"] = df["dist"].astype(str)
-    df.to_parquet(os.path.join(OUT, "polls.parquet")); df.to_csv(os.path.join(OUT, "polls.csv"), index=False)
+    df.to_parquet(os.path.join(OUT, "polls_wikipedia.parquet")); df.to_csv(os.path.join(OUT, "polls_wikipedia.csv"), index=False)
     print("DONE", len(df), "polls,", df.groupby(["kind", "state", "dist"], dropna=False).ngroups if len(df) else 0, "races with polls", flush=True)
 
 
