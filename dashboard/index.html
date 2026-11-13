@@ -313,7 +313,7 @@ function selectRace(r){sel=(sel&&r&&sel.ev===r.ev)?null:r;if(sel)socState=sel.st
 $('#map').addEventListener('click',e=>{if(e.target.tagName==='svg'){sel=null;drawMap();renderCard();drawTL();}});
 
 /* ---------- right panel ---------- */
-let kxRange='NIGHT', kxHover=null, socState=null, socNear=true, socFrom=false;
+let kxRange='NIGHT', kxHover=null, socState=null, socNear=true, socFrom=false, soc3m=false;
 const KXR={'1H':3600,'6H':6*3600,'12H':12*3600,'NIGHT':null,'3M':'long'};
 const oc=m=>m.party==='D'?C.D:m.party==='R'?C.R:C.O;
 function renderCard(){const c=$('#card');
@@ -353,9 +353,13 @@ function drawKX(outs,x0,x1,isLong,polls){const svg=document.getElementById('kxsv
       if(t<=T)past+=(past?'L':'M')+pt_;else{if(!fut){const vv=pxAt(m,T);if(vv!=null)fut='M'+X(T).toFixed(1)+','+Y(vv).toFixed(1);}fut+=(fut?'L':'M')+pt_;}}
     g+=`<path class="ln" d="${past}" stroke="${oc(m)}"/>${fut?`<path class="ln fut" d="${fut}" stroke="${oc(m)}"/>`:''}`;
     const v=pxAt(m,T);if(v!=null&&T>=x0&&T<=x1)g+=`<circle cx="${X(T)}" cy="${Y(v)}" r="3" fill="${oc(m)}" stroke="#0a0e16" stroke-width="1.5"/>`;});
+  const SL=D.social_long;
+  if(isLong&&SL){const evs=(sel?[sel.ev]:[]),cnt=new Array(SL.ndays).fill(0);evs.forEach(e=>(SL.by_event[e]||[]).forEach((c,i)=>cnt[i]+=c));
+    const mx=Math.max(1,...cnt),bh=22;cnt.forEach((c,i)=>{if(!c)return;const t=SL.t0+i*86400;if(t<x0||t>x1)return;const h=bh*c/mx;
+      g+=`<rect x="${X(t)}" y="${H-pb-h}" width="${Math.max(1,X(t+86400)-X(t)-.5)}" height="${h}" fill="rgba(0,212,255,.35)"><title>${new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:NY})}: ${c} Bluesky posts</title></rect>`;});}
   if(isLong){polls.forEach(p=>{if(p[0]<x0||p[0]>x1)return;const tt=`<title>${esc(p[1])}: D ${p[2]}% · R ${p[3]}%</title>`;
       g+=`<circle cx="${X(p[0])}" cy="${Y(p[2]/100)}" r="2.6" fill="none" stroke="${C.D}" stroke-width="1.2">${tt}</circle><circle cx="${X(p[0])}" cy="${Y(p[3]/100)}" r="2.6" fill="none" stroke="${C.R}" stroke-width="1.2">${tt}</circle>`;});
-    g+=`<text class="yl" x="${pl+2}" y="${pt+8}">${polls.length?'○ polls = vote share · lines = Kalshi win prob':'no general-election polls listed'}</text>`;}
+    g+=`<text class="yl" x="${pl+2}" y="${pt+8}">${polls.length?'○ polls (vote %) · lines Kalshi · bars Bluesky/day':'no general-election polls listed'}</text>`;}
   if(T>=x0&&T<=x1)g+=`<line class="cur" x1="${X(T)}" x2="${X(T)}" y1="${pt}" y2="${H-pb}"/>`;
   if(kxHover!=null&&kxHover>=x0&&kxHover<=x1){g+=`<line class="hv" x1="${X(kxHover)}" x2="${X(kxHover)}" y1="${pt}" y2="${H-pb}"/>`;
     outs.forEach(m=>{const v=kxHover<W0?longAt(m,kxHover):pxAt(m,kxHover);if(v!=null)g+=`<circle cx="${X(kxHover)}" cy="${Y(v)}" r="3.5" fill="${oc(m)}"/>`;});}
@@ -381,16 +385,17 @@ function renderList(){const L=$('#list');
   } else if(tab==='social'){const SO=D.social;
     if(!SO){L.innerHTML='<div class="empty">social data pending</div>';return;}
     const F=Object.fromEntries(SO.fields.map((f,i)=>[f,i])), st=socState;
-    let ps=SO.posts.filter(p=>!st||p[F.state]===st);
-    if(socNear)ps=ps.filter(p=>Math.abs(p[F.t]-T)<=3600);
+    const SL=D.social_long;
+    let ps=(soc3m&&SL?SL.posts:SO.posts).filter(p=>!st||p[F.state]===st);
+    if(socNear&&!soc3m)ps=ps.filter(p=>Math.abs(p[F.t]-T)<=3600);
     if(socFrom&&st)ps=ps.filter(p=>p[F.home]===st);
     if(stq)ps=ps.filter(p=>(p[F.text]+' '+p[F.handle]+' '+p[F.candidate]).toLowerCase().includes(stq));
     ps=ps.slice().sort((a,b)=>b[F.likes]-a[F.likes]).slice(0,150);
     const fmtN=n=>n>=1000?(n/1000).toFixed(1)+'k':n;
-    L.innerHTML=`<div class="sbar"><span>BLUESKY · ${st?'<b style="color:var(--ink)">'+st+'</b>':'all states'}</span>${st?`<button data-soc="all">all</button><button data-soc="from" class="${socFrom?'on':''}">from ${st}</button>`:''}<span class="sp"></span><button data-soc="near" class="${socNear?'on':''}">±60m</button><button data-soc="night" class="${socNear?'':'on'}">night</button></div>`+
-      (ps.map(p=>`<div class="msg post" data-t="${p[F.t]}"><span class="m"><b style="color:var(--ink)">@${esc(p[F.handle].replace('.bsky.social',''))}</b> · ${hm(p[F.t])}<span class="tagS">about ${p[F.state]}</span>${p[F.home]?`<span class="tagH" title="self-reported in profile">from ${p[F.home]}</span>`:''}</span>${hl(p[F.text])}${p[F.home_txt]?`<div class="eng" style="color:var(--amber)">⌖ profile says “${esc(p[F.home_txt])}”</div>`:''}<div class="eng">${fmtN(p[F.likes])} likes · ${fmtN(p[F.reposts])} reposts${p[F.candidate]?' · '+esc(p[F.candidate]):''} · <a href="${p[F.url]}" target="_blank" rel="noopener">open post</a></div></div>`).join('')
+    L.innerHTML=`<div class="sbar"><span>BLUESKY · ${st?'<b style="color:var(--ink)">'+st+'</b>':'all states'}</span>${st?`<button data-soc="all">all</button><button data-soc="from" class="${socFrom?'on':''}">from ${st}</button>`:''}<span class="sp"></span><button data-soc="near" class="${socNear&&!soc3m?'on':''}">±60m</button><button data-soc="night" class="${!socNear&&!soc3m?'on':''}">night</button>${D.social_long?`<button data-soc="3m" class="${soc3m?'on':''}">since aug</button>`:''}</div>`+
+      (ps.map(p=>`<div class="msg post" data-t="${p[F.t]}"><span class="m"><b style="color:var(--ink)">@${esc(p[F.handle].replace('.bsky.social',''))}</b> · ${p[F.t]<W0?new Date(p[F.t]*1000).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:NY}):hm(p[F.t])}<span class="tagS">about ${p[F.state]}</span>${p[F.home]?`<span class="tagH" title="self-reported in profile">from ${p[F.home]}</span>`:''}</span>${hl(p[F.text])}${p[F.home_txt]?`<div class="eng" style="color:var(--amber)">⌖ profile says “${esc(p[F.home_txt])}”</div>`:''}<div class="eng">${fmtN(p[F.likes])} likes · ${fmtN(p[F.reposts])} reposts${p[F.candidate]?' · '+esc(p[F.candidate]):''} · <a href="${p[F.url]}" target="_blank" rel="noopener">open post</a></div></div>`).join('')
        ||`<div class="empty">no posts ${socNear?'within ±60 min of the cursor — try "all night"':''}</div>`);
-    L.querySelectorAll('[data-soc]').forEach(b=>b.onclick=e=>{e.stopPropagation();const v=b.dataset.soc;if(v==='all'){socState=null;socFrom=false;}else if(v==='from')socFrom=!socFrom;else socNear=v==='near';renderList();});
+    L.querySelectorAll('[data-soc]').forEach(b=>b.onclick=e=>{e.stopPropagation();const v=b.dataset.soc;if(v==='all'){socState=null;socFrom=false;}else if(v==='from')socFrom=!socFrom;else if(v==='3m')soc3m=true;else{soc3m=false;socNear=v==='near';}renderList();});
   } else {if(!query){L.innerHTML='<div class="empty">type in the dock search box</div>';return;}
     const out=[];S.forEach(s=>{(D.transcripts[s.id]||[]).forEach(g=>{if(g[2].toLowerCase().includes(query))out.push([s.start+g[0],s,'tx',g[2]]);});(D.chat[s.id]?.msgs||[]).forEach(m=>{if(m[2].toLowerCase().includes(query))out.push([s.start+m[0],s,'chat',m[1]+': '+m[2]]);});});
     out.sort((a,b)=>a[0]-b[0]);const n={L:0,R:0};out.forEach(o=>n[o[1].lean]++);
@@ -464,7 +469,7 @@ function setT(t,user){T=Math.max(W0,Math.min(W1,t));$('#clock').textContent=fmtE
   $('#utc').textContent=new Date(T*1000).toISOString().replace('T',' ').slice(0,19)+'Z';
   const s=pxAt(mkBy['CONTROLS-2026-D'],T),h=pxAt(mkBy['CONTROLH-2026-D'],T);$('#kS').textContent=s==null?'—':(s*100).toFixed(1)+'%';$('#kH').textContent=h==null?'—':(h*100).toFixed(1)+'%';
   let cm=0;S.forEach(x=>{const ch=D.chat[x.id];if(!ch)return;const m=Math.floor((T-x.start)/60);const f=ch.per_min.find(p=>p[0]===m);if(f)cm+=f[1];});$('#kChat').textContent=cm.toLocaleString();
-  $('#telemetry').textContent=`src kalshi ${K.markets.length} · feeds ${S.length} · tx ${Object.keys(D.transcripts).length} · chat ${Object.keys(D.chat).length} · bsky ${D.social?D.social.total.toLocaleString():0}`;
+  $('#telemetry').textContent=`src kalshi ${K.markets.length} · feeds ${S.length} · tx ${Object.keys(D.transcripts).length} · chat ${Object.keys(D.chat).length} · bsky ${D.social?D.social.total.toLocaleString():0}${D.social_long?' / '+D.social_long.total.toLocaleString()+' since aug':''}`;
   drawTL();seekAll(!!user);const now=performance.now();if(user||now-lastSlow>900){lastSlow=now;drawMap();renderCard();if(tab!=='hits')renderList();}}
 addEventListener('resize',sizeTL);
 sizeTL();setFocus(focus,false);renderCard();setT(T,true);

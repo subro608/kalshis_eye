@@ -198,6 +198,35 @@ def long_and_polls(step=6 * 3600):
     return {"t0": t0, "step": step, "px": px, "polls": polls}
 
 
+def social_long(per_state=60):
+    """Day-by-day Bluesky backfill (data/social/bluesky_daily/*.parquet) -> daily counts + top posts per state."""
+    import glob
+    fs = sorted(glob.glob(os.path.join(ROOT, "data", "social", "bluesky_daily", "*.parquet")))
+    if not fs:
+        return None
+    df = pd.concat([pd.read_parquet(f) for f in fs], ignore_index=True)
+    df["t"] = pd.to_datetime(df["created"], utc=True, errors="coerce", format="mixed")
+    df = df[df.t.notna()]
+    d0 = pd.Timestamp("2026-08-01", tz="UTC")
+    df["day"] = ((df.t - d0).dt.total_seconds() // 86400).astype(int)
+    df = df[df.day >= 0]
+    ndays = int(df.day.max()) + 1
+    def series(g):
+        v = g.drop_duplicates("uri").day.value_counts()
+        return [int(v.get(i, 0)) for i in range(ndays)]
+    by_state = {st: series(g) for st, g in df.groupby("state")}
+    by_event = {ev: series(g) for ev, g in df[df.event.notna()].groupby("event")}
+    top = (df.sort_values("likes", ascending=False).drop_duplicates(["uri", "state"]).groupby("state").head(per_state))
+    posts = []
+    for _, r in top.iterrows():
+        rkey = r.uri.rsplit("/", 1)[-1]
+        posts.append([int(r.t.timestamp()), r.state, r.handle, (r["name"] if isinstance(r["name"], str) else "")[:40], r.text[:400],
+                      int(r.likes), int(r.reposts), r.candidate if isinstance(r.candidate, str) else "", "", f"https://bsky.app/profile/{r.did}/post/{rkey}", ""])
+    posts.sort()
+    return {"t0": int(d0.timestamp()), "ndays": ndays, "by_state": by_state, "by_event": by_event, "posts": posts,
+            "total": int(df.uri.nunique()), "last_day": str((d0 + pd.Timedelta(days=ndays - 1)).date())}
+
+
 def main():
     ss = streams()
     clips_json = os.environ.get("CLIPS_JSON")   # deploy build: clips instead of full local video
@@ -207,7 +236,7 @@ def main():
             x["video"] = None
             x["clips"] = cl.get(x["id"], [])
     data = {"window": [W0, W1], "events": EVENTS, "streams": ss, "transcripts": transcripts(ss),
-            "chat": chats(ss), "kalshi": kalshi(), "geo": geo(), "social": social(), "long": long_and_polls()}
+            "chat": chats(ss), "kalshi": kalshi(), "geo": geo(), "social": social(), "long": long_and_polls(), "social_long": social_long()}
     p = os.environ.get("DATA_OUT") or os.path.join(ROOT, "dashboard", "data.js")
     with open(p, "w") as f:
         f.write("window.DATA=")
